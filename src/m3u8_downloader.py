@@ -2,6 +2,7 @@ import asyncio
 import os
 import shutil
 import threading
+from os.path import exists
 from pathlib import Path
 from typing import List
 
@@ -31,6 +32,10 @@ class M3U8Downloader:
         video_tmp_dir = self.__tmp_path / video_uuid
         concat_list_path = video_tmp_dir / "concat_list.txt"
         output_video_path = f'{self.__downloading_path}/{video_uuid}.mp4'
+
+        if exists(output_video_path):
+            logger.info(f'Video {video_uuid} already exists at path {output_video_path}')
+            return
 
         self.__prepare_paths(video_tmp_dir=video_tmp_dir)
         self.__download_segments(
