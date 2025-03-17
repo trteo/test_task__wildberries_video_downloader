@@ -5,7 +5,7 @@ import threading
 from os.path import exists
 from pathlib import Path
 from typing import List
-
+from urllib.error import HTTPError
 from urllib.parse import urlparse
 
 import ffmpeg
@@ -80,8 +80,11 @@ class M3U8Downloader:
 
         logger.info(f"Downloading {segment_url}...")
         response = requests.get(segment_url)
-        with open(segment_path, 'wb') as f:
-            f.write(response.content)
+        if response.status_code == 200:
+            with open(segment_path, 'wb') as f:
+                f.write(response.content)
+        else:
+            raise HTTPError(code=response.status_code, msg=f'Failed to load segment: {segment_url}')
 
         logger.info(f"Downloading {segment_url} done")
         return segment_path
