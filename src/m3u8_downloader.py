@@ -33,45 +33,57 @@ class M3U8Downloader:
         concat_list_path = video_tmp_dir / "concat_list.txt"
         output_video_path = f'{self.__downloading_path}/{video_uuid}.mp4'
 
-        if exists(output_video_path):
-            logger.info(f'Video {video_uuid} already exists at path {output_video_path}')
-            return
+        try:
+            if exists(output_video_path):
+                logger.info(f'Video {video_uuid} already exists at path {output_video_path}')
+                return
 
-        self.__prepare_paths(video_tmp_dir=video_tmp_dir)
-        self.__download_segments(
-            m3u8_url=m3u8_url,
-            concat_list_path=concat_list_path,
-            video_tmp_dir=video_tmp_dir
-        )
-        self.__m3u8_2_mp4_converter(
-            output_file_path=output_video_path,
-            concat_list_path=concat_list_path
-        )
-        self.__clear_temporary_files(video_tmp_dir=video_tmp_dir)
+            self.__prepare_paths(video_tmp_dir=video_tmp_dir)
+            self.__download_segments(
+                m3u8_url=m3u8_url,
+                concat_list_path=concat_list_path,
+                video_tmp_dir=video_tmp_dir
+            )
+            self.__m3u8_2_mp4_converter(
+                output_file_path=output_video_path,
+                concat_list_path=concat_list_path
+            )
+            self.__clear_temporary_files(video_tmp_dir=video_tmp_dir)
 
-        logger.info(f"Video downloaded: {m3u8_url} to {output_video_path}")
+            logger.info(f"Video downloaded: {m3u8_url} to {output_video_path}")
+        except Exception as e:
+            self.__clear_temporary_files(video_tmp_dir=video_tmp_dir)
+            logger.error(f"Failed to download video {m3u8_url}: {e}")
 
     @staticmethod
     def __prepare_paths(video_tmp_dir: Path):
-        video_tmp_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f'Created tmp folder: {video_tmp_dir}')
+        try:
+            video_tmp_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f'Created tmp folder: {video_tmp_dir}')
+        except Exception as e:
+            logger.error(f"Failed to create directory {video_tmp_dir}: {e}")
+            raise
 
     def __download_segments(self, m3u8_url: str, concat_list_path: Path, video_tmp_dir: Path):
         logger.info(f"Start downloading segments to {video_tmp_dir}")
 
-        playlist = m3u8.load(m3u8_url)
-        segment_files: List[Path] = [
-            self.__download_segment(segment=segment, video_tmp_dir=video_tmp_dir)
-            for segment in playlist.segments
-        ]
+        try:
+            playlist = m3u8.load(m3u8_url)
+            segment_files: List[Path] = [
+                self.__download_segment(segment=segment, video_tmp_dir=video_tmp_dir)
+                for segment in playlist.segments
+            ]
 
-        logger.info(f"Downloading segments to {video_tmp_dir} done")
+            logger.info(f"Downloading segments to {video_tmp_dir} done")
 
-        with open(concat_list_path, "w") as f:
-            for segment_file in segment_files:
-                f.write(f"file '{segment_file}'\n")
+            with open(concat_list_path, "w") as f:
+                for segment_file in segment_files:
+                    f.write(f"file '{segment_file}'\n")
 
-        logger.info(f"Created concat list {concat_list_path}")
+            logger.info(f"Created concat list {concat_list_path}")
+        except Exception as e:
+            logger.error(f"Failed to download segments: {e}")
+            raise
 
     @staticmethod
     def __download_segment(segment: m3u8.Segment, video_tmp_dir: Path) -> Path:
@@ -79,28 +91,41 @@ class M3U8Downloader:
         segment_path = video_tmp_dir / os.path.basename(segment_url)
 
         logger.info(f"Downloading {segment_url}...")
-        response = requests.get(segment_url)
-        if response.status_code == 200:
+        try:
+            response = requests.get(segment_url)
+            response.raise_for_status()
             with open(segment_path, 'wb') as f:
                 f.write(response.content)
-        else:
-            raise HTTPError(code=response.status_code, msg=f'Failed to load segment: {segment_url}')
+        except requests.RequestException as e:
+            logger.error(f"Failed to download segment {segment_url}: {e}")
+            raise
+        except IOError as e:
+            logger.error(f"Failed to write segment to {segment_path}: {e}")
+            raise
 
         logger.info(f"Downloading {segment_url} done")
         return segment_path
 
     @staticmethod
     def __m3u8_2_mp4_converter(output_file_path: str, concat_list_path: Path) -> None:
-        (
-            ffmpeg
-            .input(concat_list_path, format='concat', safe=0)
-            .output(output_file_path, c='copy')
-            .overwrite_output()
-            .run()
-        )
-        logger.info(f'Finished converting video to mp4: {output_file_path}')
+        try:
+            (
+                ffmpeg
+                .input(concat_list_path, format='concat', safe=0)
+                .output(output_file_path, c='copy')
+                .overwrite_output()
+                .run()
+            )
+            logger.info(f'Finished converting video to mp4: {output_file_path}')
+        except ffmpeg.Error as e:
+            logger.error(f"Failed to convert video to mp4: {e}")
+            raise
 
     @staticmethod
     def __clear_temporary_files(video_tmp_dir: Path):
-        shutil.rmtree(video_tmp_dir)
-        logger.info(f'Removed tmp folder: {video_tmp_dir}')
+        try:
+            shutil.rmtree(video_tmp_dir)
+            logger.info(f'Removed tmp folder: {video_tmp_dir}')
+        except Exception as e:
+            logger.error(f"Failed to remove temporary files: {e}")
+            raise

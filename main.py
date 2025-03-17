@@ -18,17 +18,21 @@ if __name__ == "__main__":
     # logger.add(sys.stderr, level="DEBUG")
 
     logger.info('Opening browser')
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
-    driver.get("https://www.wildberries.ru/catalog/192186031/feedbacks")
+    try:
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+        driver.get("https://www.wildberries.ru/catalog/192186031/feedbacks")
 
-    logger.info('Init parser')
-    parser = WildberriesFeedbackVideoLinksParser(driver=driver)
+        logger.info('Init parser')
+        parser = WildberriesFeedbackVideoLinksParser(driver=driver)
 
-    logger.info('Init video downloader')
-    vd = M3U8Downloader(downloading_path=BASE_PATH)
+        logger.info('Init video downloader')
+        vd = M3U8Downloader(downloading_path=BASE_PATH)
 
-    logger.info('Init key monitoring')
-    keyboard_monitoring = KeyPressMonitoring(video_downloader=vd, parser=parser)
+        logger.info('Init key monitoring')
+        keyboard_monitoring = KeyPressMonitoring(video_downloader=vd, parser=parser)
 
-    keyboard_monitoring.start_key_listener()
-
+        keyboard_monitoring.start_key_listener()
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+    finally:
+        driver.quit()
