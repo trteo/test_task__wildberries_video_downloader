@@ -5,13 +5,15 @@ import threading
 from os.path import exists
 from pathlib import Path
 from typing import List
-from urllib.error import HTTPError
 from urllib.parse import urlparse
 
+import aiohttp
+import aiofiles
 import ffmpeg
 import m3u8
-import requests
 from loguru import logger
+
+from main2 import main2
 
 
 class M3U8Downloader:
@@ -23,6 +25,8 @@ class M3U8Downloader:
         self.__tmp_path = downloading_path / '.tmp'
 
     def add_video_to_downloading_pool(self, m3u8_url: str):
+        logger.info(f'Adding {m3u8_url} to pool')
+        # asyncio.run_coroutine_threadsafe(main2(m3u8_url=m3u8_url), self.__loop)
         asyncio.run_coroutine_threadsafe(self.__download_video(m3u8_url=m3u8_url), self.__loop)
 
     async def __download_video(self, m3u8_url: str):
@@ -39,12 +43,12 @@ class M3U8Downloader:
                 return
 
             self.__prepare_paths(video_tmp_dir=video_tmp_dir)
-            self.__download_segments(
+            await self.__download_segments(
                 m3u8_url=m3u8_url,
                 concat_list_path=concat_list_path,
                 video_tmp_dir=video_tmp_dir
             )
-            self.__m3u8_2_mp4_converter(
+            await self.__m3u8_2_mp4_converter(
                 output_file_path=output_video_path,
                 concat_list_path=concat_list_path
             )
@@ -64,21 +68,21 @@ class M3U8Downloader:
             logger.error(f"Failed to create directory {video_tmp_dir}: {e}")
             raise
 
-    def __download_segments(self, m3u8_url: str, concat_list_path: Path, video_tmp_dir: Path):
+    async def __download_segments(self, m3u8_url: str, concat_list_path: Path, video_tmp_dir: Path):
         logger.info(f"Start downloading segments to {video_tmp_dir}")
 
         try:
             playlist = m3u8.load(m3u8_url)
-            segment_files: List[Path] = [
+            segment_files: List[Path] = await asyncio.gather(*[
                 self.__download_segment(segment=segment, video_tmp_dir=video_tmp_dir)
                 for segment in playlist.segments
-            ]
+            ])
 
             logger.info(f"Downloading segments to {video_tmp_dir} done")
 
-            with open(concat_list_path, "w") as f:
+            async with aiofiles.open(concat_list_path, "w") as f:
                 for segment_file in segment_files:
-                    f.write(f"file '{segment_file}'\n")
+                    await f.write(f"file '{segment_file}'\n")
 
             logger.info(f"Created concat list {concat_list_path}")
         except Exception as e:
@@ -86,38 +90,35 @@ class M3U8Downloader:
             raise
 
     @staticmethod
-    def __download_segment(segment: m3u8.Segment, video_tmp_dir: Path) -> Path:
+    async def __download_segment(segment: m3u8.Segment, video_tmp_dir: Path) -> Path:
         segment_url: str = segment.absolute_uri
         segment_path = video_tmp_dir / os.path.basename(segment_url)
 
         logger.info(f"Downloading {segment_url}...")
         try:
-            response = requests.get(segment_url)
-            response.raise_for_status()
-            with open(segment_path, 'wb') as f:
-                f.write(response.content)
-        except requests.RequestException as e:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(segment_url) as response:
+                    response.raise_for_status()
+                    async with aiofiles.open(segment_path, 'wb') as f:
+                        await f.write(await response.read())
+        except Exception as e:
             logger.error(f"Failed to download segment {segment_url}: {e}")
-            raise
-        except IOError as e:
-            logger.error(f"Failed to write segment to {segment_path}: {e}")
             raise
 
         logger.info(f"Downloading {segment_url} done")
         return segment_path
 
     @staticmethod
-    def __m3u8_2_mp4_converter(output_file_path: str, concat_list_path: Path) -> None:
+    async def __m3u8_2_mp4_converter(output_file_path: str, concat_list_path: Path) -> None:
         try:
-            (
-                ffmpeg
-                .input(concat_list_path, format='concat', safe=0)
-                .output(output_file_path, c='copy')
-                .overwrite_output()
-                .run()
+            process = await asyncio.create_subprocess_exec(
+                'ffmpeg', '-f', 'concat', '-safe', '0', '-i', str(concat_list_path), '-c', 'copy', output_file_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+            await process.communicate()
             logger.info(f'Finished converting video to mp4: {output_file_path}')
-        except ffmpeg.Error as e:
+        except Exception as e:
             logger.error(f"Failed to convert video to mp4: {e}")
             raise
 
