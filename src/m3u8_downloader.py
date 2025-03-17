@@ -94,19 +94,23 @@ class M3U8Downloader:
         segment_url: str = segment.absolute_uri
         segment_path = video_tmp_dir / os.path.basename(segment_url)
 
+        retries = 5
         logger.info(f"Downloading {segment_url}...")
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(segment_url) as response:
-                    response.raise_for_status()
-                    async with aiofiles.open(segment_path, 'wb') as f:
-                        await f.write(await response.read())
-        except Exception as e:
-            logger.error(f"Failed to download segment {segment_url}: {e}")
-            raise
-
-        logger.info(f"Downloading {segment_url} done")
-        return segment_path
+        for attempt in range(retries):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(segment_url) as response:
+                        response.raise_for_status()
+                        async with aiofiles.open(segment_path, 'wb') as f:
+                            await f.write(await response.read())
+                logger.info(f"Downloading {segment_url} done")
+                return segment_path
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                logger.warning(f"Attempt {attempt + 1} failed for {segment_url}: {e}")
+                if attempt == retries - 1:
+                    logger.error(f"Failed to download segment {segment_url} after {retries} attempts: {e}")
+                    raise
+                await asyncio.sleep(2)
 
     @staticmethod
     async def __m3u8_2_mp4_converter(output_file_path: str, concat_list_path: Path) -> None:
