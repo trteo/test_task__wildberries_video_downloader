@@ -87,6 +87,7 @@ class M3U8Downloader:
             ffmpeg
             .input(concat_list_path, format='concat', safe=0)
             .output(output_file_path, c='copy')
+            .overwrite_output()
             .run()
         )
         logger.info(f'Finished converting video to mp4: {output_file_path}')
