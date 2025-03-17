@@ -22,13 +22,16 @@ class KeyPressMonitoring:
         if key == keyboard.Key.f4 and not self.__f4_pressed:  # Отсеиваем зажатие f4
             self.__f4_pressed = True
             logger.debug("F4 key pressed. Starting download...")
-            links_on_page = self.__video_link_parser.try_to_find_links()
+            try:
+                links_on_page = self.__video_link_parser.try_to_find_links()
 
-            for link_on_page in links_on_page:
-                if link_on_page and '.m3u8' in link_on_page:
-                    self.__video_downloader.add_video_to_downloading_pool(m3u8_url=link_on_page)
-                else:
-                    logger.error(f'Unprocessable url: {link_on_page}')
+                for link_on_page in links_on_page:
+                    if link_on_page and '.m3u8' in link_on_page:
+                        self.__video_downloader.add_video_to_downloading_pool(m3u8_url=link_on_page)
+                    else:
+                        logger.error(f'Unprocessable url: {link_on_page}')
+            except Exception as e:
+                logger.error(f"Failed to process links: {e}")
 
     def __on_release(self, key):
         logger.debug(f'Released key: {key}')
