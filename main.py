@@ -6,15 +6,15 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
+from settings.config import settings
 from src.key_press_detektor import KeyPressMonitoring
 from src.m3u8_downloader import M3U8Downloader
 from src.video_links_parser import WildberriesFeedbackVideoLinksParser
 
-BASE_PATH = Path('/Users/fedortropin/Documents/work/intevus/test_task__wildberries_video_downloader/videos')
 
 if __name__ == "__main__":
     logger.remove()
-    logger.add(sys.stderr, level="INFO")
+    logger.add(sys.stderr, level= "DEBUG" if settings.DEBUG else "INFO")
     # logger.add(sys.stderr, level="DEBUG")
 
     logger.info('Opening browser')
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         parser = WildberriesFeedbackVideoLinksParser(driver=driver)
 
         logger.info('Init video downloader')
-        vd = M3U8Downloader(downloading_path=BASE_PATH)
+        vd = M3U8Downloader(downloading_path=settings.DOWNLOADING_ROOT_PATH)
 
         logger.info('Init key monitoring')
         keyboard_monitoring = KeyPressMonitoring(video_downloader=vd, parser=parser)

@@ -180,3 +180,4 @@ cython_debug/
 /.idea/modules.xml
 /.idea/test_task__wildberries_video_downloader.iml
 /.idea/vcs.xml
+/settings/env

@@ -7,13 +7,10 @@ from pathlib import Path
 from typing import List
 from urllib.parse import urlparse
 
-import aiohttp
 import aiofiles
-import ffmpeg
+import aiohttp
 import m3u8
 from loguru import logger
-
-from main2 import main2
 
 
 class M3U8Downloader:
@@ -26,7 +23,6 @@ class M3U8Downloader:
 
     def add_video_to_downloading_pool(self, m3u8_url: str):
         logger.info(f'Adding {m3u8_url} to pool')
-        # asyncio.run_coroutine_threadsafe(main2(m3u8_url=m3u8_url), self.__loop)
         asyncio.run_coroutine_threadsafe(self.__download_video(m3u8_url=m3u8_url), self.__loop)
 
     async def __download_video(self, m3u8_url: str):
